@@ -1,0 +1,58 @@
+{
+  "project_name": "Smart Classroom & Timetable Scheduler",
+  "app_type": "landing_page",
+  "typography": {
+    "headings": "Space Grotesk, sans-serif",
+    "body": "Inter, sans-serif",
+    "weights": ["300", "400", "500", "600", "700"]
+  },
+  "colors": {
+    "primary": "#2563EB",
+    "teal": "#14B8A6",
+    "dark_slate": "#0F172A",
+    "white": "#FFFFFF",
+    "background_light": "#F8FAFC",
+    "background_dark": "#0B0F19",
+    "card_dark": "#1E293B",
+    "border_dark": "rgba(255, 255, 255, 0.1)"
+  },
+  "image_urls": [
+    {
+      "category": "hero_mockup",
+      "image_url": "https://images.unsplash.com/photo-1560452895-7d709050768f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBzYWFzJTIwZGFzaGJvYXJkJTIwYW5hbHl0aWNzJTIwdW5pdmVyc2l0eSUyMHNjaGVkdWxlfGVufDB8fHx8MTc4OTAxNjg2MHww&ixlib=rb-4.1.0&q=85",
+      "description": "Laptop mockup displaying modern dashboard UI"
+    },
+    {
+      "category": "university_campus",
+      "image_url": "https://images.unsplash.com/photo-1681782421891-5088f13466ec?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBzYWFzJTIwZGFzaGJvYXJkJTIwYW5hbHl0aWNzJTIwdW5pdmVyc2l0eSUyMHNjaGVkdWxlfGVufDB8fHx8MTc4OTAxNjg2MHww&ixlib=rb-4.1.0&q=85",
+      "description": "University building with clock tower"
+    },
+    {
+      "category": "team_working",
+      "image_url": "https://images.unsplash.com/photo-1723987251277-18fc0a1effd0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBzYWFzJTIwZGFzaGJvYXJkJTIwYW5hbHl0aWNzJTIwdW5pdmVyc2l0eSUyMHNjaGVkdWxlfGVufDB8fHx8MTc4OTAxNjg2MHww&ixlib=rb-4.1.0&q=85",
+      "description": "Students and developers collaborating on scheduling software"
+    }
+  ],
+  "sections": [
+    "Hero Section",
+    "Problem Statement",
+    "Our Solution Flow",
+    "Key Features",
+    "Scheduling Engine (Constraints)",
+    "Dashboard Showcase (Interactive Mockups)",
+    "Technology Stack",
+    "System Architecture Diagram",
+    "Benefits & Statistics",
+    "Future Scope Timeline",
+    "Team Section",
+    "Contact Form with Database Storage",
+    "Footer"
+  ],
+  "instructions_to_main_agent": "Implement a stunning, fully responsive SaaS landing page in React JS with Tailwind CSS and Framer Motion. Provide a light/dark mode toggle, interactive live demo scrolling to the dashboard mockups, contact form with backend persistence, simulated timetable generator demo, and data-testid attributes on all interactive elements.",
+  "universal_guidelines": [
+    "Use data-testid on all interactive elements",
+    "Ensure high contrast and WCAG compliance",
+    "Apply generous spacing and glassmorphism",
+    "Responsive mobile-first layout with smooth scrolling"
+  ]
+}

@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root { --ink:#0f172a; --muted:#64748b; --blue:#2563eb; --teal:#14b8a6; --paper:#f8fafc; }
+.app-shell { background:var(--paper); color:var(--ink); min-height:100vh; overflow:hidden; }
+.app-shell.dark { --ink:#e2e8f0; --muted:#94a3b8; --paper:#0b0f19; background:#0b0f19; color:var(--ink); }
+.font-display { font-family:"Space Grotesk", sans-serif; }
+.container-wide { width:min(1160px, calc(100% - 40px)); margin:0 auto; }
+.glass { background:rgba(255,255,255,.72); border:1px solid rgba(148,163,184,.22); box-shadow:0 20px 60px rgba(15,23,42,.08); backdrop-filter:blur(18px); }
+.dark .glass { background:rgba(30,41,59,.68); border-color:rgba(255,255,255,.1); box-shadow:0 20px 60px rgba(0,0,0,.22); }
+.hero-grid { background-image:linear-gradient(rgba(37,99,235,.05) 1px, transparent 1px),linear-gradient(90deg,rgba(37,99,235,.05) 1px,transparent 1px); background-size:48px 48px; }
+.orb { position:absolute; border-radius:999px; filter:blur(2px); pointer-events:none; }
+.section-pad { padding:112px 0; }
+.eyebrow { color:var(--blue); font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; }
+.gradient-text { background:linear-gradient(100deg,#2563eb,#14b8a6); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.feature-card { transition:transform .3s ease, box-shadow .3s ease, border-color .3s ease; border:1px solid rgba(148,163,184,.2); }
+.feature-card:hover { transform:translateY(-7px); box-shadow:0 18px 40px rgba(37,99,235,.12); border-color:rgba(37,99,235,.45); }
+.dash-row { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(148,163,184,.15); padding:10px 0; font-size:11px; }
+.dash-row:last-child { border:0; }
+.progress-track { height:8px; background:#e2e8f0; border-radius:20px; overflow:hidden; }
+.dark .progress-track { background:#334155; }
+.progress-fill { height:100%; border-radius:20px; background:linear-gradient(90deg,#2563eb,#14b8a6); }
+.timeline-line { background:linear-gradient(#2563eb,#14b8a6); width:2px; }
+button, a, input, textarea { transition:color .2s ease, background-color .2s ease, border-color .2s ease, transform .2s ease, box-shadow .2s ease; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline:3px solid rgba(20,184,166,.45); outline-offset:3px; }
+@media(max-width:640px){ .container-wide{width:min(100% - 28px,1160px)} .section-pad{padding:76px 0} }
