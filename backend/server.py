@@ -3,6 +3,7 @@ import secrets
 import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ import bcrypt
 import jwt
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -241,6 +243,110 @@ async def analytics(_: dict = Depends(current_user)):
     timetable = await db.timetables.find_one({"active": True}, {"_id": 0})
     entries = timetable.get("entries", []) if timetable else []
     return {"faculty_workload": [{"name": key, "lectures": value} for key, value in Counter(e["teacher_name"] for e in entries).items()], "room_utilization": [{"name": key, "sessions": value} for key, value in Counter(e["room_name"] for e in entries).items()], "subject_distribution": [{"name": key, "sessions": value} for key, value in Counter(e["subject_name"] for e in entries).items()], "daily_density": [{"name": key, "sessions": value} for key, value in Counter(e["day"] for e in entries).items()], "quality_score": timetable.get("score", 0) if timetable else 0}
+
+
+DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+@api.post("/timetable/{timetable_id}/activate")
+async def activate_timetable(timetable_id: str, _: dict = Depends(current_user)):
+    result = await db.timetables.update_one({"id": timetable_id}, {"$set": {"active": True, "updated_at": now()}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Timetable not found")
+    await db.timetables.update_many({"id": {"$ne": timetable_id}}, {"$set": {"active": False}})
+    return {"ok": True}
+
+
+@api.get("/public/teacher/{teacher_id}")
+async def public_teacher_schedule(teacher_id: str):
+    teacher = await db.teachers.find_one({"id": teacher_id}, {"_id": 0})
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    timetable = await db.timetables.find_one({"active": True}, {"_id": 0}) or {}
+    entries = [entry for entry in timetable.get("entries", []) if entry.get("teacher_id") == teacher_id]
+    config = await read_config()
+    return {"teacher": {"id": teacher["id"], "name": teacher["name"], "department": teacher.get("department", ""), "employee_id": teacher.get("employee_id", "")}, "timetable_name": timetable.get("name", ""), "entries": entries, "working_days": config.get("working_days", []), "periods_per_day": int(config.get("periods_per_day", 6))}
+
+
+def timetable_grid(timetable):
+    entries = timetable.get("entries", [])
+    days = sorted({entry["day"] for entry in entries}, key=lambda day: DAY_ORDER.index(day) if day in DAY_ORDER else 99)
+    periods = sorted({entry["period"] for entry in entries})
+    divisions = sorted({entry["division_name"] for entry in entries})
+    def cell(division, day, period):
+        return next((entry for entry in entries if entry["division_name"] == division and entry["day"] == day and entry["period"] == period), None)
+    return days, periods, divisions, cell
+
+
+@api.get("/timetable/{timetable_id}/export/excel")
+async def export_timetable_excel(timetable_id: str, _: dict = Depends(current_user)):
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    timetable = await db.timetables.find_one({"id": timetable_id}, {"_id": 0})
+    if not timetable:
+        raise HTTPException(status_code=404, detail="Timetable not found")
+    days, periods, divisions, cell = timetable_grid(timetable)
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    header_fill = PatternFill("solid", fgColor="2563EB")
+    header_font = Font(color="FFFFFF", bold=True)
+    wrap = Alignment(wrap_text=True, vertical="top")
+    for division in divisions:
+        sheet = workbook.create_sheet((division or "Timetable")[:31])
+        sheet.append([f"{timetable.get('name', 'Weekly Timetable')} — Division {division}"])
+        sheet.append(["Period", *days])
+        for period in periods:
+            row = [f"P{period}"]
+            for day in days:
+                entry = cell(division, day, period)
+                row.append(f"{entry.get('subject_code') or entry['subject_name']}\n{entry['teacher_name']}\n{entry['room_name']}" if entry else "Free")
+            sheet.append(row)
+        for item in sheet[2]:
+            item.fill = header_fill
+            item.font = header_font
+        for row in sheet.iter_rows(min_row=3):
+            for item in row:
+                item.alignment = wrap
+        sheet.column_dimensions["A"].width = 10
+        for index in range(len(days)):
+            sheet.column_dimensions[chr(66 + index)].width = 24
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f'attachment; filename="timetable-{timetable_id}.xlsx"'})
+
+
+@api.get("/timetable/{timetable_id}/export/pdf")
+async def export_timetable_pdf(timetable_id: str, _: dict = Depends(current_user)):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    timetable = await db.timetables.find_one({"id": timetable_id}, {"_id": 0})
+    if not timetable:
+        raise HTTPException(status_code=404, detail="Timetable not found")
+    days, periods, divisions, cell = timetable_grid(timetable)
+    styles = getSampleStyleSheet()
+    cell_style = styles["Normal"]
+    cell_style.fontSize = 7
+    cell_style.leading = 9
+    story = [Paragraph(timetable.get("name", "Weekly Timetable"), styles["Title"]), Paragraph(f"Quality score {timetable.get('score', 0)}/100 · Generated {str(timetable.get('created_at', ''))[:10]}", styles["Normal"]), Spacer(1, 14)]
+    for division in divisions:
+        story.append(Paragraph(f"Division {division}", styles["Heading2"]))
+        data = [["Period", *days]]
+        for period in periods:
+            row = [f"P{period}"]
+            for day in days:
+                entry = cell(division, day, period)
+                row.append(Paragraph(f"<b>{entry.get('subject_code') or entry['subject_name']}</b><br/>{entry['teacher_name']}<br/>{entry['room_name']}", cell_style) if entry else "—")
+            data.append(row)
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563EB")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("FONTSIZE", (0, 0), (-1, -1), 7), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f1f5f9")])]))
+        story.extend([table, Spacer(1, 18)])
+    buffer = BytesIO()
+    SimpleDocTemplate(buffer, pagesize=landscape(A4), title=timetable.get("name", "Timetable")).build(story)
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="timetable-{timetable_id}.pdf"'})
 
 
 app.include_router(api)

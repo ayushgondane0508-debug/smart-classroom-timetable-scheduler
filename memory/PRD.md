@@ -27,10 +27,13 @@ Upgrade a premium SaaS-style landing page into a fully functional "Smart Classro
 - Backend: login, /auth/me, demo load, generate (score 88, 0 conflicts), timetable list, analytics, dashboard stats — all pass via curl
 - Frontend: landing renders, Live Demo → /scheduler login → dashboard with stats, timetable grid renders 30 entries, teachers CRUD table, analytics charts — verified via screenshots
 
+## Implemented (2026-09-10, round 2)
+- Real server-side exports: `GET /api/timetable/{id}/export/excel` (multi-sheet .xlsx, one grid per division) and `/export/pdf` (landscape A4 report) — verified downloads in browser
+- Teacher portal: public read-only page at `/teacher/{id}` (no login) backed by `GET /api/public/teacher/{id}`; copy-link button on each Teachers row
+- Timetable versions: Versions page lists every generation, "Set active" (`POST /api/timetable/{id}/activate`), pick two → side-by-side compare with amber diff highlighting
+- Drag & drop editing: in single-division view, drag lectures to free slots or onto sessions to swap; instant client-side conflict check (teacher/room/division double-booking) + server 409 validation; blocked moves show inline warning
+
 ## Backlog
-- P0: Drag & drop timetable editing with real-time conflict validation
-- P0: Verify Export Excel / Print PDF flows end to end
-- P1: Teacher/Student role views
-- P1: Multiple timetable versions & comparison
+- P1: Teacher/Student role logins (portal is currently link-based, no auth)
 - P1: Mobile layout for timetable grid
 - P2: Chart.js-based analytics charts (currently styled bars)
