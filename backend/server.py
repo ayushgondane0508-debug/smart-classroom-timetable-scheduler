@@ -438,7 +438,22 @@ async def update_timetable(timetable_id: str, input: EntityInput, _: dict = Depe
 async def analytics(_: dict = Depends(admin_user)):
     timetable = await db.timetables.find_one({"active": True}, {"_id": 0})
     entries = timetable.get("entries", []) if timetable else []
-    return {"faculty_workload": [{"name": key, "lectures": value} for key, value in Counter(e["teacher_name"] for e in entries).items()], "room_utilization": [{"name": key, "sessions": value} for key, value in Counter(e["room_name"] for e in entries).items()], "subject_distribution": [{"name": key, "sessions": value} for key, value in Counter(e["subject_name"] for e in entries).items()], "daily_density": [{"name": key, "sessions": value} for key, value in Counter(e["day"] for e in entries).items()], "quality_score": timetable.get("score", 0) if timetable else 0}
+    config = await read_config()
+    total_slots = len(config.get("working_days", [])) * int(config.get("periods_per_day", 0))
+    teachers = {t["id"]: t for t in await list_entities("teachers")}
+    days = config.get("working_days", [])
+    workload = []
+    for teacher_id, count in Counter(e["teacher_id"] for e in entries).items():
+        teacher = teachers.get(teacher_id, {})
+        per_day = Counter(e["day"] for e in entries if e["teacher_id"] == teacher_id)
+        workload.append({"id": teacher_id, "name": teacher.get("name") or next(e["teacher_name"] for e in entries if e["teacher_id"] == teacher_id), "lectures": count, "max_per_week": int(teacher.get("maximum_lectures_per_week") or 0), "max_per_day": int(teacher.get("maximum_lectures_per_day") or 0), "busiest_day": max(per_day, key=per_day.get) if per_day else "", "per_day": {day: per_day.get(day, 0) for day in days}, "labs": sum(1 for e in entries if e["teacher_id"] == teacher_id and e.get("requires_lab"))})
+    workload.sort(key=lambda item: -item["lectures"])
+    rooms = []
+    for room_id, count in Counter(e["room_id"] for e in entries).items():
+        sample = next(e for e in entries if e["room_id"] == room_id)
+        rooms.append({"id": room_id, "name": sample["room_name"], "sessions": count, "total_slots": total_slots, "utilization": round(count / total_slots * 100) if total_slots else 0, "is_lab": bool(sample.get("requires_lab")), "divisions": sorted({e["division_name"] for e in entries if e["room_id"] == room_id})})
+    rooms.sort(key=lambda item: -item["sessions"])
+    return {"faculty_workload": workload, "room_utilization": rooms, "subject_distribution": [{"name": key, "sessions": value} for key, value in Counter(e["subject_name"] for e in entries).items()], "daily_density": [{"name": day, "sessions": sum(1 for e in entries if e["day"] == day), "labs": sum(1 for e in entries if e["day"] == day and e.get("requires_lab"))} for day in days], "quality_score": timetable.get("score", 0) if timetable else 0, "total_slots": total_slots, "total_sessions": len(entries)}
 
 
 DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -472,6 +487,23 @@ async def public_teacher_schedule(teacher_id: str):
 @api.get("/me/schedule")
 async def my_schedule(user: dict = Depends(teacher_user)):
     return await teacher_schedule(user["teacher_id"])
+
+
+@api.get("/public/divisions")
+async def public_divisions():
+    divisions = await db.divisions.find({}, {"_id": 0, "id": 1, "name": 1, "department": 1, "semester": 1, "student_count": 1}).sort("name", 1).to_list(500)
+    return divisions
+
+
+@api.get("/public/division/{division_id}")
+async def public_division_schedule(division_id: str):
+    division = await db.divisions.find_one({"id": division_id}, {"_id": 0})
+    if not division:
+        raise HTTPException(status_code=404, detail="Division not found")
+    timetable = await db.timetables.find_one({"active": True}, {"_id": 0}) or {}
+    entries = [entry for entry in timetable.get("entries", []) if entry.get("division_id") == division_id]
+    config = await read_config()
+    return {"division": {"id": division["id"], "name": division["name"], "department": division.get("department", ""), "semester": division.get("semester"), "student_count": division.get("student_count")}, "timetable_name": timetable.get("name", ""), "updated_at": timetable.get("updated_at", ""), "entries": entries, "working_days": config.get("working_days", []), "periods_per_day": int(config.get("periods_per_day", 6)), "start_time": config.get("start_time", "09:00"), "period_duration": int(config.get("period_duration", 55))}
 
 
 def timetable_grid(timetable):

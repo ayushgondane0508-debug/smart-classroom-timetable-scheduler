@@ -39,7 +39,7 @@ export default function TeacherPortal({ teacherId }) {
     <div className="portal-glow"/>
     <header className="portal-header">
       <div className="portal-brand"><span className="scheduler-mark small">SC</span><span>Smart<strong>Classroom</strong></span></div>
-      <div className="portal-actions"><a href="/teacher-login" data-testid="portal-signin-link">Faculty sign in</a><a href="/" data-testid="portal-home-link">← Product overview</a></div>
+      <div className="portal-actions"><a href="/student" data-testid="portal-student-link">Student view</a><a href="/teacher-login" data-testid="portal-signin-link">Faculty sign in</a><a href="/" data-testid="portal-home-link">← Product overview</a></div>
     </header>
     <ScheduleBoard data={state.data}/>
     <footer className="portal-footer">Live read-only view · updates automatically when the admin publishes a new timetable</footer>

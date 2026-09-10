@@ -220,6 +220,72 @@ def test_department_mode_persistence_and_generate(admin_session):
     assert r.status_code == 200
 
 
+# ---------- public divisions & division schedule (iteration 3) ----------
+def test_public_divisions_no_auth():
+    r = requests.get(f"{API}/public/divisions", timeout=15)
+    assert r.status_code == 200
+    items = r.json()
+    assert isinstance(items, list) and len(items) >= 2
+    keys = {"id", "name", "department", "semester", "student_count"}
+    for d in items:
+        assert keys.issubset(d.keys()), f"missing keys in {d}"
+    by_id = {d["id"]: d for d in items}
+    assert "demo-d-1" in by_id and by_id["demo-d-1"]["name"] == "CSE-A"
+    assert "demo-d-2" in by_id and by_id["demo-d-2"]["name"] == "CSE-B"
+
+
+def test_public_division_schedule_ok_and_404():
+    r = requests.get(f"{API}/public/division/demo-d-1", timeout=15)
+    assert r.status_code == 200
+    body = r.json()
+    for k in ["division", "entries", "working_days", "periods_per_day", "start_time", "period_duration"]:
+        assert k in body, f"missing key {k}"
+    assert body["division"]["id"] == "demo-d-1"
+    assert body["division"]["name"] == "CSE-A"
+    # entries must be scoped to this division only
+    for e in body["entries"]:
+        assert e.get("division_id") == "demo-d-1"
+    assert isinstance(body["working_days"], list) and len(body["working_days"]) >= 1
+    assert isinstance(body["periods_per_day"], int)
+
+    r = requests.get(f"{API}/public/division/does-not-exist", timeout=15)
+    assert r.status_code == 404
+
+
+# ---------- analytics enrichment (iteration 3) ----------
+def test_analytics_requires_auth():
+    r = requests.get(f"{API}/analytics", timeout=15)
+    assert r.status_code == 401
+
+
+def test_analytics_enriched(admin_session):
+    r = admin_session.get(f"{API}/analytics", timeout=15)
+    assert r.status_code == 200
+    data = r.json()
+    for k in ["faculty_workload", "room_utilization", "subject_distribution", "daily_density", "total_slots", "total_sessions"]:
+        assert k in data
+    assert data["total_slots"] == 30
+    assert data["total_sessions"] > 0
+
+    assert len(data["faculty_workload"]) > 0
+    fw_keys = {"id", "name", "lectures", "max_per_week", "max_per_day", "busiest_day", "per_day", "labs"}
+    for item in data["faculty_workload"]:
+        assert fw_keys.issubset(item.keys()), f"missing keys {fw_keys - set(item.keys())}"
+        assert isinstance(item["per_day"], dict)
+
+    assert len(data["room_utilization"]) > 0
+    ru_keys = {"sessions", "total_slots", "utilization", "is_lab", "divisions"}
+    for item in data["room_utilization"]:
+        assert ru_keys.issubset(item.keys())
+        assert item["total_slots"] == 30
+        assert 0 <= item["utilization"] <= 100
+        assert isinstance(item["divisions"], list)
+
+    assert len(data["daily_density"]) >= 5
+    for item in data["daily_density"]:
+        assert "sessions" in item and "labs" in item and "name" in item
+
+
 # ---------- brute force lockout ----------
 def test_brute_force_lockout():
     email = f"lock.{uuid.uuid4().hex[:6]}@x.com"

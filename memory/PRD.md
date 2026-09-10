@@ -41,8 +41,12 @@ Upgrade a premium SaaS-style landing page into a fully functional "Smart Classro
 - Department mode (single/multi) in Timetable settings; teacher `departments` list (multi mode only); scheduler restricts fallback teachers by department; Department filter on timetable page when >1 department
 - Verified by testing agent: iteration_2.json — backend 11/11, frontend 100%
 
+## Implemented (2026-09-10, round 4)
+- Interactive analytics (`AnalyticsCharts.js`, recharts): faculty workload bar (amber when >85% of weekly max), room utilization % bar (classroom vs lab), subject-share donut, daily density area (all vs labs) — custom hover tooltips; `/api/analytics` enriched (per_day, busiest_day, max limits, utilization %, total_slots, total_sessions)
+- Public Student Portal `/student` (`StudentPortal.js`, no login): searchable division picker grouped by department, remembered in localStorage, deep link `/student/{divisionId}`, day cards on mobile + table with period times on desktop, share link, "lectures today" pill; backend `GET /api/public/divisions`, `GET /api/public/division/{id}`; hero "Student timetable" button + copy-link on Divisions rows
+- Verified by testing agent: iteration_3.json — backend 100%, frontend 100%
+
 ## Backlog
 - P1: Add a real RESEND_API_KEY + verified sender to deliver emails (currently logged only)
-- P2: Chart.js-based analytics charts (currently styled bars)
-- P2: Student portal / student role
+- P2: Substitute finder (free same-department teachers for a slot)
 - P3: Split server.py into routers (auth, files, timetable)
