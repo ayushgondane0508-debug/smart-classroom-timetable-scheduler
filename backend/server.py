@@ -372,18 +372,27 @@ async def update_config(input: EntityInput, _: dict = Depends(admin_user)):
     return item
 
 
+def demo_documents():
+    teachers = [{"id": f"demo-t-{i}", "name": name, "employee_id": f"FAC-{i:03}", "department": "Computer Engineering", "maximum_lectures_per_day": 4, "maximum_lectures_per_week": 20, "availability": [], "demo": True, "created_at": now()} for i, name in enumerate(["Aarav Shah", "Meera Joshi", "Kabir Patil", "Nisha Rao", "Rohan Kulkarni", "Isha Deshmukh"], 1)]
+    teachers += [{"id": f"demo-t-{i}", "name": name, "employee_id": f"FAC-{i:03}", "department": "Information Technology", "departments": ["Computer Engineering"], "maximum_lectures_per_day": 4, "maximum_lectures_per_week": 20, "availability": [], "demo": True, "created_at": now()} for i, name in enumerate(["Priya Nair", "Dev Mehta", "Sana Khan"], 7)]
+    subjects = [{"id": f"demo-s-{i}", "name": name, "code": code, "department": "Computer Engineering", "semester": 3, "type": kind, "lectures_per_week": count, "duration": 1, "requires_lab": lab, "teacher_id": f"demo-t-{((i - 1) % 6) + 1}", "demo": True, "created_at": now()} for i, (name, code, kind, count, lab) in enumerate([("Data Structures", "CS201", "Theory", 3, False), ("Operating Systems", "CS202", "Theory", 3, False), ("Database Systems", "CS203", "Theory", 3, False), ("Computer Networks", "CS204", "Theory", 2, False), ("DS Lab", "CS205L", "Practical", 2, True), ("DBMS Lab", "CS206L", "Practical", 2, True)], 1)]
+    subjects += [{"id": f"demo-s-{i}", "name": name, "code": code, "department": "Information Technology", "semester": 3, "type": kind, "lectures_per_week": count, "duration": 1, "requires_lab": lab, "teacher_id": teacher, "demo": True, "created_at": now()} for i, (name, code, kind, count, lab, teacher) in enumerate([("Web Technologies", "IT301", "Theory", 3, False, "demo-t-7"), ("Software Engineering", "IT302", "Theory", 3, False, "demo-t-8"), ("Object Oriented Programming", "IT303", "Theory", 2, False, "demo-t-9"), ("Web Lab", "IT304L", "Practical", 2, True, "demo-t-7"), ("OOP Lab", "IT305L", "Practical", 2, True, "demo-t-9")], 7)]
+    cse_subjects = [s["id"] for s in subjects if s["department"] == "Computer Engineering"]
+    it_subjects = [s["id"] for s in subjects if s["department"] == "Information Technology"]
+    divisions = [{"id": "demo-d-1", "name": "CSE-A", "department": "Computer Engineering", "semester": 3, "student_count": 42, "subjects": cse_subjects, "demo": True, "created_at": now()}, {"id": "demo-d-2", "name": "CSE-B", "department": "Computer Engineering", "semester": 3, "student_count": 36, "subjects": cse_subjects, "demo": True, "created_at": now()}, {"id": "demo-d-3", "name": "IT-A", "department": "Information Technology", "semester": 3, "student_count": 40, "subjects": it_subjects, "demo": True, "created_at": now()}, {"id": "demo-d-4", "name": "IT-B", "department": "Information Technology", "semester": 3, "student_count": 38, "subjects": it_subjects, "demo": True, "created_at": now()}]
+    classrooms = [{"id": f"demo-r-{i}", "room_number": f"20{i}", "building": "A Block", "capacity": 60, "room_type": "Classroom", "available_slots": [], "demo": True, "created_at": now()} for i in range(1, 5)]
+    labs = [{"id": "demo-l-1", "lab_name": "Systems Lab", "lab_number": "LAB-1", "lab_type": "Computer", "capacity": 50, "room_type": "Laboratory", "available_slots": [], "demo": True, "created_at": now()}, {"id": "demo-l-2", "lab_name": "Database Lab", "lab_number": "LAB-2", "lab_type": "Computer", "capacity": 50, "room_type": "Laboratory", "available_slots": [], "demo": True, "created_at": now()}, {"id": "demo-l-3", "lab_name": "Web Lab", "lab_number": "LAB-3", "lab_type": "Computer", "capacity": 50, "room_type": "Laboratory", "available_slots": [], "demo": True, "created_at": now()}]
+    return {"teachers": teachers, "subjects": subjects, "divisions": divisions, "classrooms": classrooms, "laboratories": labs}
+
+
 @api.post("/demo/load")
 async def load_demo(_: dict = Depends(admin_user)):
-    await db.teachers.delete_many({"demo": True}); await db.subjects.delete_many({"demo": True}); await db.divisions.delete_many({"demo": True}); await db.classrooms.delete_many({"demo": True}); await db.laboratories.delete_many({"demo": True})
-    teachers = [{"id": f"demo-t-{i}", "name": name, "employee_id": f"FAC-{i:03}", "department": "Computer Engineering", "maximum_lectures_per_day": 4, "maximum_lectures_per_week": 20, "availability": [], "demo": True, "created_at": now()} for i, name in enumerate(["Aarav Shah", "Meera Joshi", "Kabir Patil", "Nisha Rao", "Rohan Kulkarni", "Isha Deshmukh"], 1)]
-    subjects = [{"id": f"demo-s-{i}", "name": name, "code": code, "department": "Computer Engineering", "semester": 3, "type": kind, "lectures_per_week": count, "duration": 1, "requires_lab": lab, "teacher_id": f"demo-t-{((i - 1) % 6) + 1}", "demo": True, "created_at": now()} for i, (name, code, kind, count, lab) in enumerate([("Data Structures", "CS201", "Theory", 3, False), ("Operating Systems", "CS202", "Theory", 3, False), ("Database Systems", "CS203", "Theory", 3, False), ("Computer Networks", "CS204", "Theory", 2, False), ("DS Lab", "CS205L", "Practical", 2, True), ("DBMS Lab", "CS206L", "Practical", 2, True)], 1)]
-    divisions = [{"id": "demo-d-1", "name": "CSE-A", "department": "Computer Engineering", "semester": 3, "student_count": 42, "subjects": [s["id"] for s in subjects], "demo": True, "created_at": now()}, {"id": "demo-d-2", "name": "CSE-B", "department": "Computer Engineering", "semester": 3, "student_count": 36, "subjects": [s["id"] for s in subjects], "demo": True, "created_at": now()}]
-    classrooms = [{"id": f"demo-r-{i}", "room_number": f"20{i}", "building": "A Block", "capacity": 60, "room_type": "Classroom", "available_slots": [], "demo": True, "created_at": now()} for i in range(1, 5)]
-    labs = [{"id": "demo-l-1", "lab_name": "Systems Lab", "lab_number": "LAB-1", "lab_type": "Computer", "capacity": 50, "room_type": "Laboratory", "available_slots": [], "demo": True, "created_at": now()}, {"id": "demo-l-2", "lab_name": "Database Lab", "lab_number": "LAB-2", "lab_type": "Computer", "capacity": 50, "room_type": "Laboratory", "available_slots": [], "demo": True, "created_at": now()}]
-    for collection, values in [("teachers", teachers), ("subjects", subjects), ("divisions", divisions), ("classrooms", classrooms), ("laboratories", labs)]:
+    docs = demo_documents()
+    for collection, values in docs.items():
+        await db[collection].delete_many({"demo": True})
         await db[collection].insert_many(values)
     await db.settings.replace_one({"id": "default"}, DEFAULT_CONFIG, upsert=True)
-    return {"ok": True, "counts": {"teachers": len(teachers), "subjects": len(subjects), "divisions": len(divisions), "classrooms": len(classrooms), "laboratories": len(labs)}}
+    return {"ok": True, "counts": {name: len(values) for name, values in docs.items()}}
 
 
 @api.delete("/demo/reset")

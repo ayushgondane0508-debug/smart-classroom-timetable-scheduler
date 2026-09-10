@@ -50,6 +50,11 @@ Upgrade a premium SaaS-style landing page into a fully functional "Smart Classro
 - Analytics PDF report: `GET /api/analytics/report.pdf` (admin) builds a one-page A4 report with reportlab graphics — 4 KPI tiles, workload bar (amber >85% of weekly max), room utilization % bar, subject pie with legend, daily density grouped bars (all vs labs), insight captions; auto-archived to Files & exports. "Download PDF report" button on Analytics page (blob download, 404 → inline error when no timetable)
 - Verified: curl 200/401, PDF rendered & inspected (1 page), browser download via Playwright
 
+## Implemented (2026-09-10, round 6)
+- Demo data now includes an Information Technology department: 3 IT teachers (demo-t-7..9, also listed under Computer Engineering for multi-dept mode), 5 IT subjects (IT301–IT305L), divisions IT-A / IT-B (demo-d-3/4), extra Web Lab (LAB-3); `demo_documents()` helper shared by `/api/demo/load`
+- Scheduler fix: each division is only scheduled for its own `subjects` list (fallback: subjects of the same department) instead of every subject
+- Active timetable regenerated: 54 sessions, 4 divisions, 0 conflicts; student portal groups Computer Engineering + Information Technology
+
 ## Backlog
 - P1: Add a real RESEND_API_KEY + verified sender to deliver emails (currently logged only)
 - P2: Substitute finder (free same-department teachers for a slot)

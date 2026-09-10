@@ -22,7 +22,8 @@ def generate_schedule(teachers, subjects, divisions, rooms, labs, config):
     entries, failures = [], []
     requests = []
     for division in divisions:
-        for subject in subjects:
+        chosen = [s for s in subjects if s["id"] in set(division.get("subjects") or [])] or [s for s in subjects if not s.get("department") or not division.get("department") or s.get("department") == division.get("department")]
+        for subject in chosen:
             count = int(subject.get("lectures_per_week") or 0)
             for occurrence in range(count):
                 requests.append((subject.get("requires_lab", False), division, subject, occurrence))
