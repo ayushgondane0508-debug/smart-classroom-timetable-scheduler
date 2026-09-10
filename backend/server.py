@@ -436,6 +436,10 @@ async def update_timetable(timetable_id: str, input: EntityInput, _: dict = Depe
 
 @api.get("/analytics")
 async def analytics(_: dict = Depends(admin_user)):
+    return await compute_analytics()
+
+
+async def compute_analytics():
     timetable = await db.timetables.find_one({"active": True}, {"_id": 0})
     entries = timetable.get("entries", []) if timetable else []
     config = await read_config()
@@ -453,7 +457,124 @@ async def analytics(_: dict = Depends(admin_user)):
         sample = next(e for e in entries if e["room_id"] == room_id)
         rooms.append({"id": room_id, "name": sample["room_name"], "sessions": count, "total_slots": total_slots, "utilization": round(count / total_slots * 100) if total_slots else 0, "is_lab": bool(sample.get("requires_lab")), "divisions": sorted({e["division_name"] for e in entries if e["room_id"] == room_id})})
     rooms.sort(key=lambda item: -item["sessions"])
-    return {"faculty_workload": workload, "room_utilization": rooms, "subject_distribution": [{"name": key, "sessions": value} for key, value in Counter(e["subject_name"] for e in entries).items()], "daily_density": [{"name": day, "sessions": sum(1 for e in entries if e["day"] == day), "labs": sum(1 for e in entries if e["day"] == day and e.get("requires_lab"))} for day in days], "quality_score": timetable.get("score", 0) if timetable else 0, "total_slots": total_slots, "total_sessions": len(entries)}
+    return {"faculty_workload": workload, "room_utilization": rooms, "subject_distribution": [{"name": key, "sessions": value} for key, value in Counter(e["subject_name"] for e in entries).items()], "daily_density": [{"name": day, "sessions": sum(1 for e in entries if e["day"] == day), "labs": sum(1 for e in entries if e["day"] == day and e.get("requires_lab"))} for day in days], "quality_score": timetable.get("score", 0) if timetable else 0, "total_slots": total_slots, "total_sessions": len(entries), "timetable_name": timetable.get("name", "") if timetable else "", "hard_constraint_violations": timetable.get("hard_constraint_violations", 0) if timetable else 0, "college_name": config.get("college_name", ""), "academic_year": config.get("academic_year", ""), "timetable_id": timetable.get("id") if timetable else None}
+
+
+@api.get("/analytics/report.pdf")
+async def analytics_report(background: BackgroundTasks, _: dict = Depends(admin_user)):
+    from reportlab.graphics.charts.barcharts import HorizontalBarChart, VerticalBarChart
+    from reportlab.graphics.charts.piecharts import Pie
+    from reportlab.graphics.shapes import Drawing, Rect, String
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    data = await compute_analytics()
+    if not data["total_sessions"]:
+        raise HTTPException(status_code=404, detail="Generate a timetable before exporting the analytics report")
+    blue, teal, amber, ink, muted = colors.HexColor("#2563EB"), colors.HexColor("#14B8A6"), colors.HexColor("#F59E0B"), colors.HexColor("#0F172A"), colors.HexColor("#64748B")
+    palette = [blue, teal, amber, colors.HexColor("#8B5CF6"), colors.HexColor("#EF4444"), colors.HexColor("#0EA5E9"), colors.HexColor("#84CC16"), colors.HexColor("#EC4899")]
+    styles = getSampleStyleSheet()
+    kicker = ParagraphStyle("kicker", parent=styles["Normal"], fontSize=7, textColor=blue, leading=9, spaceAfter=2)
+    title = ParagraphStyle("title", parent=styles["Title"], fontSize=20, leading=24, alignment=0, textColor=ink, spaceAfter=2)
+    sub = ParagraphStyle("sub", parent=styles["Normal"], fontSize=8.5, textColor=muted, leading=11)
+    head = ParagraphStyle("head", parent=styles["Normal"], fontSize=9.5, leading=12, textColor=ink, fontName="Helvetica-Bold")
+    small = ParagraphStyle("small", parent=styles["Normal"], fontSize=7, leading=9, textColor=muted)
+    workload, rooms, subjects, density = data["faculty_workload"][:8], data["room_utilization"][:8], data["subject_distribution"][:8], data["daily_density"]
+    avg_util = round(sum(r["utilization"] for r in rooms) / len(rooms)) if rooms else 0
+    overloaded = [w["name"] for w in data["faculty_workload"] if w["max_per_week"] and w["lectures"] / w["max_per_week"] > 0.85]
+    busiest = max(density, key=lambda d: d["sessions"])["name"] if density else "—"
+    quietest = min(density, key=lambda d: d["sessions"])["name"] if density else "—"
+
+    def stat(label, value, color):
+        d = Drawing(120, 46)
+        d.add(Rect(0, 0, 120, 46, rx=8, ry=8, fillColor=colors.HexColor("#F8FAFC"), strokeColor=colors.HexColor("#E2E8F0"), strokeWidth=0.6))
+        d.add(Rect(0, 40, 120, 6, rx=3, ry=3, fillColor=color, strokeColor=None))
+        d.add(String(10, 26, label, fontName="Helvetica", fontSize=6.5, fillColor=muted))
+        d.add(String(10, 9, str(value), fontName="Helvetica-Bold", fontSize=15, fillColor=ink))
+        return d
+
+    def hbar(rows, key, color_fn, max_value, width=234, height=190, suffix=""):
+        d = Drawing(width, height)
+        chart = HorizontalBarChart()
+        chart.x, chart.y, chart.width, chart.height = 70, 8, width - 90, height - 16
+        chart.data = [[r[key] for r in rows]]
+        chart.categoryAxis.categoryNames = [r["name"][:18] for r in rows]
+        chart.categoryAxis.labels.fontName, chart.categoryAxis.labels.fontSize, chart.categoryAxis.labels.fillColor = "Helvetica", 6.5, ink
+        chart.categoryAxis.strokeColor = colors.HexColor("#E2E8F0")
+        chart.valueAxis.valueMin, chart.valueAxis.valueMax = 0, max_value
+        chart.valueAxis.labels.fontName, chart.valueAxis.labels.fontSize, chart.valueAxis.labels.fillColor = "Helvetica", 6, muted
+        chart.valueAxis.strokeColor, chart.valueAxis.gridStrokeColor, chart.valueAxis.visibleGrid = colors.HexColor("#E2E8F0"), colors.HexColor("#F1F5F9"), 1
+        chart.valueAxis.labelTextFormat = f"%d{suffix.replace('%', '%%')}"
+        chart.bars.strokeColor = None
+        chart.barWidth = 9
+        chart.groupSpacing = 8
+        for index, row in enumerate(rows):
+            chart.bars[(0, index)].fillColor = color_fn(row)
+        chart.barLabels.fontName, chart.barLabels.fontSize, chart.barLabels.fillColor, chart.barLabels.dx = "Helvetica-Bold", 6.5, ink, 12
+        chart.barLabelFormat = f"%d{suffix.replace('%', '%%')}"
+        d.add(chart)
+        return d
+
+    def pie(rows, width=234, height=190):
+        d = Drawing(width, height)
+        chart = Pie()
+        chart.x, chart.y, chart.width, chart.height = 4, 30, 120, 120
+        chart.data = [r["sessions"] for r in rows]
+        chart.labels = None
+        chart.slices.strokeColor, chart.slices.strokeWidth = colors.white, 1.2
+        chart.sideLabels = 0
+        for index in range(len(rows)):
+            chart.slices[index].fillColor = palette[index % len(palette)]
+        d.add(chart)
+        total = sum(chart.data) or 1
+        for index, row in enumerate(rows):
+            y = height - 18 - index * 15
+            d.add(Rect(134, y - 1, 7, 7, rx=2, ry=2, fillColor=palette[index % len(palette)], strokeColor=None))
+            d.add(String(145, y, f"{row['name'][:20]} · {row['sessions']} ({round(row['sessions'] / total * 100)}%)", fontName="Helvetica", fontSize=6, fillColor=ink))
+        return d
+
+    def vbar(rows, width=234, height=190):
+        d = Drawing(width, height)
+        chart = VerticalBarChart()
+        chart.x, chart.y, chart.width, chart.height = 28, 22, width - 40, height - 34
+        chart.data = [[r["sessions"] for r in rows], [r["labs"] for r in rows]]
+        chart.categoryAxis.categoryNames = [r["name"][:3] for r in rows]
+        chart.categoryAxis.labels.fontName, chart.categoryAxis.labels.fontSize, chart.categoryAxis.labels.fillColor = "Helvetica", 6.5, ink
+        chart.categoryAxis.strokeColor = colors.HexColor("#E2E8F0")
+        chart.valueAxis.valueMin = 0
+        chart.valueAxis.labels.fontName, chart.valueAxis.labels.fontSize, chart.valueAxis.labels.fillColor = "Helvetica", 6, muted
+        chart.valueAxis.strokeColor, chart.valueAxis.gridStrokeColor, chart.valueAxis.visibleGrid = colors.HexColor("#E2E8F0"), colors.HexColor("#F1F5F9"), 1
+        chart.bars[0].fillColor, chart.bars[1].fillColor = blue, teal
+        chart.bars.strokeColor = None
+        chart.groupSpacing, chart.barSpacing = 10, 2
+        chart.barLabels.fontName, chart.barLabels.fontSize, chart.barLabels.fillColor, chart.barLabels.dy = "Helvetica-Bold", 6, ink, 4
+        chart.barLabelFormat = "%d"
+        d.add(chart)
+        d.add(Rect(30, 4, 8, 6, fillColor=blue, strokeColor=None)); d.add(String(41, 4, "All sessions", fontName="Helvetica", fontSize=6, fillColor=muted))
+        d.add(Rect(95, 4, 8, 6, fillColor=teal, strokeColor=None)); d.add(String(106, 4, "Laboratory sessions", fontName="Helvetica", fontSize=6, fillColor=muted))
+        return d
+
+    def card(kicker_text, heading, drawing, note):
+        return Table([[Paragraph(kicker_text.upper(), kicker)], [Paragraph(heading, head)], [drawing], [Paragraph(note, small)]], colWidths=[250], style=TableStyle([("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#E2E8F0")), ("ROUNDEDCORNERS", [8, 8, 8, 8]), ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3), ("TOPPADDING", (0, 0), (0, 0), 8), ("BOTTOMPADDING", (0, -1), (-1, -1), 8)]))
+
+    max_lectures = max([w["lectures"] for w in workload] + [1])
+    workload_chart = hbar(workload[::-1], "lectures", lambda r: amber if r["max_per_week"] and r["lectures"] / r["max_per_week"] > 0.85 else blue, max_lectures + 1)
+    rooms_chart = hbar(rooms[::-1], "utilization", lambda r: teal if r["is_lab"] else blue, 100, suffix="%")
+    generated = datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC")
+    stats_row = Table([[stat("Timetable quality", f"{data['quality_score']}/100", teal), stat("Hard violations", data["hard_constraint_violations"], blue if not data["hard_constraint_violations"] else amber), stat("Sessions / week", data["total_sessions"], blue), stat("Avg room utilization", f"{avg_util}%", amber)]], colWidths=[128] * 4, style=TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 4), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+    grid = Table([
+        [card("Faculty workload", "Lectures per teacher (per week)", workload_chart, f"Amber bars exceed 85% of the teacher's weekly limit. {('Watch: ' + ', '.join(overloaded)) if overloaded else 'No teacher is near their weekly limit.'}"), card("Room utilization", "% of weekly slots occupied", rooms_chart, f"Based on {data['total_slots']} teaching slots per week. Teal bars are laboratories.")],
+        [card("Subject distribution", "Share of the timetable per subject", pie(subjects), f"{len(data['subject_distribution'])} subjects scheduled across {data['total_sessions']} sessions."), card("Daily density", "Sessions scheduled per working day", vbar(density), f"Busiest day is {busiest}; {quietest} is the lightest.")],
+    ], colWidths=[258, 258], style=TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
+    story = [Paragraph("SMART CLASSROOM · ANALYTICS REPORT", kicker), Paragraph(f"{data['college_name'] or 'College'} — timetable analytics", title), Paragraph(f"{data['timetable_name'] or 'Active timetable'} · Academic year {data['academic_year'] or '—'} · Generated {generated}", sub), Spacer(1, 10), stats_row, Spacer(1, 10), grid, Spacer(1, 4), Paragraph("Prepared automatically by Smart Classroom & Timetable Scheduler from the active published timetable. Figures reflect the schedule at the time of export.", small)]
+    buffer = BytesIO()
+    SimpleDocTemplate(buffer, pagesize=A4, leftMargin=14 * mm, rightMargin=14 * mm, topMargin=12 * mm, bottomMargin=10 * mm, title="Timetable analytics report").build(story)
+    payload = buffer.getvalue()
+    if data["timetable_id"]:
+        background.add_task(archive_export, {"id": data["timetable_id"], "name": f"{data['timetable_name']} analytics report", "score": data["quality_score"]}, payload, "pdf", "application/pdf")
+    return Response(content=payload, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="analytics-report-{datetime.now(timezone.utc).strftime("%Y%m%d")}.pdf"'})
 
 
 DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
