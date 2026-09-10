@@ -14,6 +14,13 @@ const queryClient = new QueryClient({
 });
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
+document.addEventListener("click", (event) => {
+  const launch = event.target.closest('[data-testid="live-demo-button"]');
+  if (launch) {
+    event.preventDefault();
+    window.location.href = "/scheduler";
+  }
+});
 root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
