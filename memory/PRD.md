@@ -33,7 +33,16 @@ Upgrade a premium SaaS-style landing page into a fully functional "Smart Classro
 - Timetable versions: Versions page lists every generation, "Set active" (`POST /api/timetable/{id}/activate`), pick two → side-by-side compare with amber diff highlighting
 - Drag & drop editing: in single-division view, drag lectures to free slots or onto sessions to swap; instant client-side conflict check (teacher/room/division double-booking) + server 409 validation; blocked moves show inline warning
 
+## Implemented (2026-09-10, round 3)
+- Mobile day-by-day card view (`DayCards.js`, framer-motion tabs/stagger) on admin timetable page, teacher portal and teacher workspace at ≤760px; table hidden on phones
+- Email schedule alerts via Resend (`emailer.py`): fired in background on generate + set-active, manual `POST /api/timetable/{id}/notify`, "Email teachers" button, Email alerts page (`NotificationsView.js`) with provider banner + log. RESEND_API_KEY intentionally empty → alerts stored with status `skipped` (MOCKED delivery until key added)
+- Multi-role auth: `current_user` (any role) / `admin_user` / `teacher_user`; admin creates teacher logins (`PUT/DELETE /api/teachers/{id}/credentials`), teacher login page `/teacher-login` (`TeacherAuth.js`) → own schedule via `GET /api/me/schedule`; `POST /api/auth/change-password` with Change-password form for admin (Settings) and teachers; brute-force lockout (5 fails / 15 min)
+- Emergent Object Storage (`storage.py`): teacher profile photos (`POST /api/teachers/{id}/photo`, public `GET /api/files/{id}`), Documents library (`/api/documents` upload/list/soft-delete, auth-gated download), auto-archived export history (`GET /api/exports`) — Files & exports page (`FilesView.js`)
+- Department mode (single/multi) in Timetable settings; teacher `departments` list (multi mode only); scheduler restricts fallback teachers by department; Department filter on timetable page when >1 department
+- Verified by testing agent: iteration_2.json — backend 11/11, frontend 100%
+
 ## Backlog
-- P1: Teacher/Student role logins (portal is currently link-based, no auth)
-- P1: Mobile layout for timetable grid
+- P1: Add a real RESEND_API_KEY + verified sender to deliver emails (currently logged only)
 - P2: Chart.js-based analytics charts (currently styled bars)
+- P2: Student portal / student role
+- P3: Split server.py into routers (auth, files, timetable)

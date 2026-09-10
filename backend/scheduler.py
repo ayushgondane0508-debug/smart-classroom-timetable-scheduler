@@ -27,9 +27,19 @@ def generate_schedule(teachers, subjects, divisions, rooms, labs, config):
             for occurrence in range(count):
                 requests.append((subject.get("requires_lab", False), division, subject, occurrence))
     requests.sort(key=lambda item: (not item[0], item[1].get("student_count", 0)), reverse=True)
+    multi_department = config.get("department_mode", "single") == "multi"
+
+    def teaches(teacher, subject):
+        department = subject.get("department")
+        if not department:
+            return True
+        if multi_department:
+            return department in {teacher.get("department"), *(teacher.get("departments") or [])}
+        return teacher.get("department") == department
+
     for requires_lab, division, subject, occurrence in requests:
         assigned_teacher_id = subject.get("teacher_id")
-        candidates_teachers = [teacher_map[assigned_teacher_id]] if assigned_teacher_id in teacher_map else teachers
+        candidates_teachers = [teacher_map[assigned_teacher_id]] if assigned_teacher_id in teacher_map else [teacher for teacher in teachers if teaches(teacher, subject)]
         assigned = None
         for slot in slots:
             slot_key = slot["slot_key"]
@@ -54,7 +64,7 @@ def generate_schedule(teachers, subjects, divisions, rooms, labs, config):
             if assigned:
                 break
         if not assigned:
-            failures.append({"subject": subject.get("name"), "division": division.get("name"), "reason": "No teacher, room, lab, availability, or period satisfies the hard constraints."})
+            failures.append({"subject": subject.get("name"), "division": division.get("name"), "reason": "No teacher, room, lab, availability, or period satisfies the hard constraints." if candidates_teachers else f"No teacher belongs to the {subject.get('department')} department ({'multi' if multi_department else 'single'}-department mode)."})
             continue
         entries.append(assigned)
         used_divisions.add((division["id"], assigned["slot_key"]))
