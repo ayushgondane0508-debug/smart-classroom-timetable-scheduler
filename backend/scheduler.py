@@ -14,6 +14,7 @@ def generate_schedule(teachers, subjects, divisions, rooms, labs, config):
     periods = int(config.get("periods_per_day") or 6)
     slots = [{"day": day, "period": period, "slot_key": f"{day}-{period}"} for day in days for period in range(1, periods + 1)]
     teacher_map = {item["id"]: item for item in teachers}
+    print("TEACHER MAP:", teacher_map)
     room_list = rooms + labs
     used_teachers, used_rooms, used_divisions = set(), set(), set()
     daily_teacher = Counter()
