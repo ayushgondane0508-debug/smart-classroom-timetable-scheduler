@@ -41,6 +41,7 @@ def generate_schedule(teachers, subjects, divisions, rooms, labs, config):
 
     for requires_lab, division, subject, occurrence in requests:
         assigned_teacher_id = subject.get("teacher_id")
+        print("SUBJECT:", subject.get("code"), subject.get("name"), "TEACHER_ID:", subject.get("teacher_id"))
         candidates_teachers = [teacher_map[assigned_teacher_id]] if assigned_teacher_id in teacher_map else [teacher for teacher in teachers if teaches(teacher, subject)]
         assigned = None
         for slot in slots:
